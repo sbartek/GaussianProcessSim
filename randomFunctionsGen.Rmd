@@ -72,6 +72,56 @@ msims <- melted.simulations(x.star, sim.number,
 gg.simulations(msims)
 ```
 
+## Constant
+
+\[cov(f(x_p), f (x_q)) = k(x_p , x_q) = \sigma_0^2 \]
+
+```{r}
+sigma0 <- 0.1
+cov.fun <- function(x1, x2) {sigma0^2}
+S <- Sigma(x.star,x.star, cov.fun)
+msims <- melted.simulations(x.star, sim.number,
+                            rep(0, length(x.star)), S)
+gg.simulations(msims)
+
+```
+
+## Exponential
+
+```{r}
+
+x.star <- seq(-5,5,0.1)
+sim.number <- 5
+
+exp.cov <- function(x,y,l=1) {
+  exp(-norm(x-y, type="2")/l)
+}
+
+
+S <- abs(Sigma(x.star, x.star, exp.cov))
+msims <- melted.simulations(x.star, sim.number,
+                            rep(0, length(x.star)), S)
+gg.simulations(msims)
+
+```
+
+## Linear
+
+```{r}
+x.star <- seq(-5,5,0.1)
+sim.number <- 5
+
+lin.cov <- function(x,y,sigma1=1) {
+  (sigma1^2)*x*y
+}
+
+
+S <- abs(Sigma(x.star, x.star, lin.cov))
+msims <- melted.simulations(x.star, sim.number,
+                            rep(0, length(x.star)), S)
+gg.simulations(msims)
+```
+
 ## Brownian Motion
 
 ```{r}
@@ -79,46 +129,47 @@ brow <- function(x1,x2) {
   min(x1,x2)
 }
 
-x.star <- seq(0,5,0.01)
-S <- Sigma(x.star,x.star, brow)
+x.star <- seq(0, 5, 0.005)
+S <- Sigma(x.star, x.star, brow)
 ms <- rep(0, length(x.star))
 msims <- melted.simulations(x.star, sim.number, ms, S)
 gg.simulations(msims)
 
 bm <- data.table(t(mvrnorm(2, rep(0, length(x.star)), S)))
-ggplot(bm, aes(V1,V2))+geom_point()
+ggplot(bm, aes(V1,V2))+
+    geom_path() + theme_bw()
 ```
 
-## Formula que jode a Maria
+## Predictions
 
 \[\overline{y}^* = K^*(\lambda^2\cdot I+K)^{-1}\cdot y \]
 
-\[C = K^{**}-K^*\cdot(\lambda^2\cdotI+K)^{-1}\cdot(K^*)^t \]
+\[C = K^{**}-K^*\cdot(\lambda^2\cdot I+K)^{-1}\cdot(K^*)^t \]
 
 ```{r}
 
-y.predict <- function(x, y, x.star, cov.fun) {
+y.predict <- function(x, y, x.star, cov.fun, sigma=0) {
   K <- Sigma(x,x)
+  I <- diag(length(x))
   K.star <- Sigma(x.star, x)
-  K.star %*% solve(K) %*% y
+  K.star %*% solve(K+sigma^2*I) %*% y
 }
 
-cov.predict <- function(x, y, x.star, cov.fun) {
+cov.predict <- function(x, y, x.star, cov.fun, sigma=0) {
   K <- Sigma(x,x)
+  I <- diag(length(x))
   K.star <- Sigma(x.star, x)
   K.star.star <- Sigma(x.star, x.star)
-  K.star.star - K.star %*% solve(K) %*% t(K.star)
+  K.star.star - K.star %*% solve(K+sigma^2*I) %*% t(K.star)
 }
 
-gg.simulations2 <- function(x, y, x.star, cov.fun, sim.number) {
+gg.simulations2 <- function(x, y, x.star, cov.fun, sim.number, sigma=0) {
   observations <- data.table(x, y)
-  y.star.bar <- y.predict(x, y, x.star, cov.fun)[,1]
+  y.star.bar <- y.predict(x, y, x.star, cov.fun, sigma)[,1]
   predictors <- data.table(x=x.star, y=y.star.bar)
-  S <- cov.predict(x, y, x.star, cov.fun)
+  S <- cov.predict(x, y, x.star, cov.fun, sigma)
   ms <- y.star.bar
   msims <- melted.simulations(x.star, sim.number, ms, S)
-
-  print(diag(S))
   d <- abs(diag(S))
   predictors$sigma <- sqrt(d)
   
@@ -140,12 +191,12 @@ x.star <- seq(-5,5,0.1)
 sim.number <- 20
 cov.fun <- squared.exp;
 
-
-
 gg.simulations2(x, y, x.star, cov.fun, sim.number)
 
 
 ```
+
+## Browian
 
 ```{r}
 x <- c(0,1)
@@ -155,29 +206,26 @@ sim.number <- 20
 cov.fun <- brow;
 gg.simulations2(x, y, x.star, cov.fun, sim.number)
 
-observations <- data.table(x=x, y=y)
-y.star.bar <- y.predict(x, y, x.star, cov.fun)
+```
 
-gg.simulations2(x, y, x.star, cov.fun, sim.number)
+## Sigma non zero
 
-  observations <- data.table(x=x, y=y)
-  y.star.bar <- y.predict(x, y, x.star, cov.fun)
-  predictors <- data.table(x=x.star, y=y.star.bar)
-  S <- cov.predict(x, y, x.star, cov.fun)
-  d <- abs(diag(S))
-  ms <- y.star.bar
-  msims <- melted.simulations(x.star, sim.number, ms, S)
-  
-  ggplot() +
-      geom_line(data = msims, aes(x=x,y=value,
-                    group=factor(variable)), alpha=.3, colour="green") 
-          geom_point(data=observations,
-                     aes(x,y), size=3, colour="red")
-              geom_line(data=predictors, aes(x, y), colour='blue') +
-                  geom_ribbon(aes(x.star, ymax=y.star.bar+2*sqrt(d),
-                                  ymin=y.star.bar-2*sqrt(d)), alpha=0.1)
+```{r}
+x <- c(-4,-3,-1,0,2)
+y <- c(-2,0, 1, 2, -1)
+x.star <- seq(-5,5,0.1)
+sim.number <- 20
+cov.fun <- squared.exp;
+sigma <- 0.1
+
+gg.simulations2(x, y, x.star, cov.fun, sim.number, sigma) +
+    geom_errorbar(data=data.table(x,y),
+                  aes(x,y, ymin=y-2*sigma, ymax=y+2*sigma), width=0.2)
+
+
 
 ```
+
 ## Large n
 
 If $n$ is large, for example $n\geq 10000$, then to solve the equation
