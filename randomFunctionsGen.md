@@ -3,6 +3,9 @@
 
 ```r
 require(knitr)
+require(MASS)
+require(data.table)
+require(ggplot2)
 ```
 
 
@@ -27,9 +30,35 @@ and will write the Gaussian process as
 
 
 ```r
-2
+x <- seq(-5,5,0.5)
+
+sim.number <- 5
+
+
+squared.exp <- function(x,y,l=1) {
+  exp(-0.5* (norm(x-y, type="2")/l)^2)
+}
+
+Sigma <- function(x, l=1) {
+  n <- length(x)
+  S <- matrix(rep(0, n*n), nrow=n)
+  for (i in 1:n) {
+    for (j in 1:n) {
+      S[i,j] <- squared.exp(x[i],x[j],l)
+    }
+  }
+  S
+}
+
+S <- Sigma(x)
+sims <- data.table(x=x)
+gens <- mvrnorm(sim.number, rep(0, length(x)), S)
+sims <- cbind(sims, t(gens))
+ggplot(sims,aes(x)) + geom_line(aes(y=V1)) +
+    geom_line(aes(y=V2)) +
+        geom_line(aes(y=V3)) 
 ```
 
-```
-## [1] 2
-```
+![plot of chunk unnamed-chunk-2](figure/unnamed-chunk-2-1.png) 
+
+

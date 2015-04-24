@@ -37,18 +37,19 @@ squared.exp <- function(x,y,l=1) {
   exp(-0.5* (norm(x-y, type="2")/l)^2)
 }
 
-Sigma <- function(x, l=1) {
-  n <- length(x)
-  S <- matrix(rep(0, n*n), nrow=n)
-  for (i in 1:n) {
-    for (j in 1:n) {
-      S[i,j] <- squared.exp(x[i],x[j],l)
+Sigma <- function(x1, x2, l=1) {
+  n1 <- length(x1)
+  n2 <- length(x2)
+  S <- matrix(rep(0, n1*n2), nrow=n1)
+  for (i in 1:n1) {
+    for (j in 1:n2) {
+      S[i,j] <- squared.exp(x1[i],x2[j],l)
     }
   }
   S
 }
 
-S <- Sigma(x)
+S <- Sigma(x,x)
 sims <- data.table(x=x)
 gens <- mvrnorm(sim.number, rep(0, length(x)), S)
 sims <- cbind(sims, t(gens))
@@ -57,4 +58,55 @@ ggplot(sims,aes(x)) + geom_line(aes(y=V1)) +
         geom_line(aes(y=V3)) 
 ```
 
+## Formula que jode a Maria
 
+\[\overline{y}^* = K^*(\lambda^2\cdot I+K)^{-1}\cdot y \]
+
+\[C = K^{**}-K^*\cdot(\lambda^2\cdotI+K)^{-1}\cdot(K^*)^t \]
+
+```{r}
+x <- c(-4,-3,-1,0,2)
+y <- c(-2,0, 1, 2, -1)
+
+input <- data.table(x=x, y=y)
+
+x.star <- seq(-5,5,0.1)
+K <- Sigma(x,x)
+K.star2 <- Sigma(x.star, x.star)
+K.star <- Sigma(x.star, x)
+
+
+y.star.bar <- K.star %*% solve(K) %*% y
+C <- K.star2 - K.star %*% solve(K) %*% t(K.star)
+y.star.bar
+
+
+d <- c()
+for (i in 1:dim(C)[1]) { d <- c(d,C[i,i]) }
+
+ggplot() + geom_point(aes(x,y), size=3, colour="red") +
+    geom_line(aes(x.star, y.star.bar)) +
+        geom_ribbon(aes(x.star, ymax=y.star.bar+2*sqrt(abs(d)),
+                        ymin=y.star.bar-2*sqrt(abs(d))), alpha=0.5) 
+
+heatmap(C)
+norm(Sigma(y.star.bar, y.star.bar) - C)/norm(C)
+
+y.sim=mvrnorm(1, y.star.bar, C)
+sims <- data.table(x=x.star, y=y.sim)
+
+ggplot(sims, aes(x)) + geom_line(aes(y=mvrnorm(1, y.star.bar, C)))+
+    geom_line(aes(y=mvrnorm(1, y.star.bar, C))) +
+        geom_point(data=input, aes(x,y), size=3, colour="red")
+
+
+d <- c()
+for (i in 1:dim(C)[1]) { d <- c(d,C[i,i]) }
+d
+```
+
+## Large n
+
+If $n$ is large, for example $n\geq 10000$, then to solve the equation
+is not practical. Therefore is is usefull to develope approximate
+solution.
