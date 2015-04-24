@@ -3,59 +3,90 @@
 ```{r}
 require(knitr)
 require(MASS)
+
 require(data.table)
+require(reshape2)
+
 require(ggplot2)
 ```
 
 
 ## Definitions
 
-_Gaussian process_ is a collection of random variables, any
-finite number of which have a joint Gaussian distribution.
+_Gaussian process_ is a stochastic process where any finite number of
+random variables have a joint Gaussian distribution.
 
-A Gaussian process is completely specified by its mean function and
-co- variance function. We define mean function \(m(x)\) and the
-covariance function \(k(x,x')\) of a real process \(f(x)\) as
-_covariance_ and _mean_ function
+A Gaussian process is completely specified by its _mean function_
+\(m(x)\) and _covariance function_ \(k(x,x')\). They are defined by
+
 \[m(x) = \mathcal{E}[f(x)],\]
+
 \[ k(x,x') = \mathcal{E}[(f(x) − m(x))(f(x') − m(x'))],\]
-and will write the Gaussian process as
-\( f(x) \sim GP(m(x), k(x, x'))\).
+
+and will write the Gaussian process as \( f(x) \sim GP(m(x), k(x,
+x'))\).
+
+
 
 ## Squared exponential
+
+
 
 \[ cov(f(x_p), f (x_q)) = k(x_p , x_q) =
     \exp\Big(−\frac{1}{2} |x_p − x_q |\Big)^2.\]
 
 ```{r}
-x <- seq(-5,5,0.5)
-
-sim.number <- 5
-
 
 squared.exp <- function(x,y,l=1) {
   exp(-0.5* (norm(x-y, type="2")/l)^2)
 }
 
-Sigma <- function(x1, x2, l=1) {
+Sigma <- function(x1, x2, cov.fun=squared.exp) {
   n1 <- length(x1)
   n2 <- length(x2)
   S <- matrix(rep(0, n1*n2), nrow=n1)
   for (i in 1:n1) {
     for (j in 1:n2) {
-      S[i,j] <- squared.exp(x1[i],x2[j],l)
-    }
-  }
+      S[i,j] <- cov.fun(x1[i],x2[j]) }}
   S
 }
 
-S <- Sigma(x,x)
-sims <- data.table(x=x)
-gens <- mvrnorm(sim.number, rep(0, length(x)), S)
-sims <- cbind(sims, t(gens))
-ggplot(sims,aes(x)) + geom_line(aes(y=V1)) +
-    geom_line(aes(y=V2)) +
-        geom_line(aes(y=V3)) 
+melted.simulations <- function(x.star, sim.number, ms, S) {
+  sims <- cbind(data.table(x=x.star), t(mvrnorm(sim.number, ms, S)))
+  melt(sims, id=1)
+}
+
+gg.simulations <- function(melted.sims) {
+  ggplot() +
+      geom_line(data = melted.sims, aes(x=x,y=value,
+                    group=factor(variable)), alpha=.6) +
+          theme_bw()
+}
+
+
+x.star <- seq(-5,5,0.1)
+sim.number <- 5
+S <- Sigma(x.star,x.star)
+msims <- melted.simulations(x.star, sim.number,
+                            rep(0, length(x.star)), S)
+gg.simulations(msims)
+```
+
+## Brownian Motion
+
+```{r}
+brow <- function(x1,x2) {
+  min(x1,x2)
+}
+
+x.star <- seq(0,5,0.01)
+S <- Sigma(x.star,x.star, brow)
+ms <- rep(0, length(x.star))
+msims <- melted.simulations(x.star, sim.number, ms, S)
+gg.simulations(msims)
+
+bm <- data.table(t(mvrnorm(2, rep(0, length(x.star)), S)))
+ggplot(bm, aes(V1,V2))+geom_point()
 ```
 
 ## Formula que jode a Maria
@@ -65,46 +96,88 @@ ggplot(sims,aes(x)) + geom_line(aes(y=V1)) +
 \[C = K^{**}-K^*\cdot(\lambda^2\cdotI+K)^{-1}\cdot(K^*)^t \]
 
 ```{r}
+
+y.predict <- function(x, y, x.star, cov.fun) {
+  K <- Sigma(x,x)
+  K.star <- Sigma(x.star, x)
+  K.star %*% solve(K) %*% y
+}
+
+cov.predict <- function(x, y, x.star, cov.fun) {
+  K <- Sigma(x,x)
+  K.star <- Sigma(x.star, x)
+  K.star.star <- Sigma(x.star, x.star)
+  K.star.star - K.star %*% solve(K) %*% t(K.star)
+}
+
+gg.simulations2 <- function(x, y, x.star, cov.fun, sim.number) {
+  observations <- data.table(x, y)
+  y.star.bar <- y.predict(x, y, x.star, cov.fun)[,1]
+  predictors <- data.table(x=x.star, y=y.star.bar)
+  S <- cov.predict(x, y, x.star, cov.fun)
+  ms <- y.star.bar
+  msims <- melted.simulations(x.star, sim.number, ms, S)
+
+  print(diag(S))
+  d <- abs(diag(S))
+  predictors$sigma <- sqrt(d)
+  
+  ggplot() +
+      geom_line(data = msims, aes(x=x, y=value,
+                    group=factor(variable)), alpha=.3, colour="green") +
+          geom_point(data=observations,
+                     aes(x,y), size=3, colour="red")+
+              geom_line(data=predictors, aes(x, y), colour='blue') +
+                  geom_ribbon(data=predictors,
+                              aes(x, ymax=y+2*sigma,
+                                  ymin=y-2*sigma), alpha=0.1)+
+                      theme_bw()
+}                 
+
 x <- c(-4,-3,-1,0,2)
 y <- c(-2,0, 1, 2, -1)
-
-input <- data.table(x=x, y=y)
-
 x.star <- seq(-5,5,0.1)
-K <- Sigma(x,x)
-K.star2 <- Sigma(x.star, x.star)
-K.star <- Sigma(x.star, x)
+sim.number <- 20
+cov.fun <- squared.exp;
 
 
-y.star.bar <- K.star %*% solve(K) %*% y
-C <- K.star2 - K.star %*% solve(K) %*% t(K.star)
-y.star.bar
+
+gg.simulations2(x, y, x.star, cov.fun, sim.number)
 
 
-d <- c()
-for (i in 1:dim(C)[1]) { d <- c(d,C[i,i]) }
-
-ggplot() + geom_point(aes(x,y), size=3, colour="red") +
-    geom_line(aes(x.star, y.star.bar)) +
-        geom_ribbon(aes(x.star, ymax=y.star.bar+2*sqrt(abs(d)),
-                        ymin=y.star.bar-2*sqrt(abs(d))), alpha=0.5) 
-
-heatmap(C)
-norm(Sigma(y.star.bar, y.star.bar) - C)/norm(C)
-
-y.sim=mvrnorm(1, y.star.bar, C)
-sims <- data.table(x=x.star, y=y.sim)
-
-ggplot(sims, aes(x)) + geom_line(aes(y=mvrnorm(1, y.star.bar, C)))+
-    geom_line(aes(y=mvrnorm(1, y.star.bar, C))) +
-        geom_point(data=input, aes(x,y), size=3, colour="red")
-
-
-d <- c()
-for (i in 1:dim(C)[1]) { d <- c(d,C[i,i]) }
-d
 ```
 
+```{r}
+x <- c(0,1)
+y <- c(0,0)
+x.star <- seq(0,1,0.01)
+sim.number <- 20
+cov.fun <- brow;
+gg.simulations2(x, y, x.star, cov.fun, sim.number)
+
+observations <- data.table(x=x, y=y)
+y.star.bar <- y.predict(x, y, x.star, cov.fun)
+
+gg.simulations2(x, y, x.star, cov.fun, sim.number)
+
+  observations <- data.table(x=x, y=y)
+  y.star.bar <- y.predict(x, y, x.star, cov.fun)
+  predictors <- data.table(x=x.star, y=y.star.bar)
+  S <- cov.predict(x, y, x.star, cov.fun)
+  d <- abs(diag(S))
+  ms <- y.star.bar
+  msims <- melted.simulations(x.star, sim.number, ms, S)
+  
+  ggplot() +
+      geom_line(data = msims, aes(x=x,y=value,
+                    group=factor(variable)), alpha=.3, colour="green") 
+          geom_point(data=observations,
+                     aes(x,y), size=3, colour="red")
+              geom_line(data=predictors, aes(x, y), colour='blue') +
+                  geom_ribbon(aes(x.star, ymax=y.star.bar+2*sqrt(d),
+                                  ymin=y.star.bar-2*sqrt(d)), alpha=0.1)
+
+```
 ## Large n
 
 If $n$ is large, for example $n\geq 10000$, then to solve the equation
