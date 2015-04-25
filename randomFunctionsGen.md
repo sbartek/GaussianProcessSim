@@ -1,4 +1,4 @@
-# Title
+# Gaussians Animals
 
 
 ```r
@@ -30,7 +30,6 @@ x'))\).
 
 
 ## Squared exponential
-
 
 
 \[ cov(f(x_p), f (x_q)) = k(x_p , x_q) =
@@ -93,6 +92,9 @@ gg.simulations(msims)
 
 ## Exponential
 
+\[cov(f(x_p), f (x_q)) = k(x_p , x_q) = \exp(-|x_p-x_q|/l) \]
+
+
 
 ```r
 x.star <- seq(-5,5,0.1)
@@ -113,6 +115,8 @@ gg.simulations(msims)
 
 ## Linear
 
+\[cov(f(x_p), f (x_q)) = k(x_p , x_q) = \sigma_1\cdot x_p\cdot x_q \]
+
 
 ```r
 x.star <- seq(-5,5,0.1)
@@ -131,6 +135,33 @@ gg.simulations(msims)
 
 ![plot of chunk unnamed-chunk-5](figure/unnamed-chunk-5-1.png) 
 
+## Rational Quadratic
+
+\[ cov(f(x_p), f (x_q)) = k(x_p , x_q) =
+    \Big(1+\frac{r^2}{2\alpha l^2}\Big)^{-\alpha} \]
+
+
+
+```r
+alpha <- 2
+l <- 1
+rq.cov <- function(x,y,sigma1=1) {
+  (1+(norm(x-y, type="2")^2/(2*alpha*l^2)))^(-alpha)
+}
+
+sim.number <- 9
+S <- abs(Sigma(x.star, x.star, rq.cov))
+msims <- melted.simulations(x.star, sim.number,
+                            rep(0, length(x.star)), S)
+ggplot() +
+    geom_line(data = msims, aes(x=x,y=value,
+                  colour=factor(variable)), alpha=.6) +
+        theme_bw() + scale_color_brewer(palette = "Blues") +
+            theme(legend.position="none")
+```
+
+![plot of chunk unnamed-chunk-6](figure/unnamed-chunk-6-1.png) 
+
 ## Brownian Motion
 
 
@@ -146,7 +177,7 @@ msims <- melted.simulations(x.star, sim.number, ms, S)
 gg.simulations(msims)
 ```
 
-![plot of chunk unnamed-chunk-6](figure/unnamed-chunk-6-1.png) 
+![plot of chunk unnamed-chunk-7](figure/unnamed-chunk-7-1.png) 
 
 ```r
 bm <- data.table(t(mvrnorm(2, rep(0, length(x.star)), S)))
@@ -154,7 +185,7 @@ ggplot(bm, aes(V1,V2))+
     geom_path() + theme_bw()
 ```
 
-![plot of chunk unnamed-chunk-6](figure/unnamed-chunk-6-2.png) 
+![plot of chunk unnamed-chunk-7](figure/unnamed-chunk-7-2.png) 
 
 ## Predictions
 
@@ -210,9 +241,9 @@ cov.fun <- squared.exp;
 gg.simulations2(x, y, x.star, cov.fun, sim.number)
 ```
 
-![plot of chunk unnamed-chunk-7](figure/unnamed-chunk-7-1.png) 
+![plot of chunk unnamed-chunk-8](figure/unnamed-chunk-8-1.png) 
 
-## Browian
+## Brownian bridge
 
 
 ```r
@@ -224,7 +255,7 @@ cov.fun <- brow;
 gg.simulations2(x, y, x.star, cov.fun, sim.number)
 ```
 
-![plot of chunk unnamed-chunk-8](figure/unnamed-chunk-8-1.png) 
+![plot of chunk unnamed-chunk-9](figure/unnamed-chunk-9-1.png) 
 
 ## Sigma non zero
 
@@ -242,7 +273,7 @@ gg.simulations2(x, y, x.star, cov.fun, sim.number, sigma) +
                   aes(x,y, ymin=y-2*sigma, ymax=y+2*sigma), width=0.2)
 ```
 
-![plot of chunk unnamed-chunk-9](figure/unnamed-chunk-9-1.png) 
+![plot of chunk unnamed-chunk-10](figure/unnamed-chunk-10-1.png) 
 
 ## Large n
 
