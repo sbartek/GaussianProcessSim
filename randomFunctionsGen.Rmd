@@ -1,7 +1,6 @@
 # Gaussians Animals
 
 ```{r}
-require(knitr)
 require(MASS)
 
 require(data.table)
